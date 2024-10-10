@@ -1,48 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { NextPage } from "next";
-import { randomBytes, createHash } from "crypto";
-import bs58 from "bs58";
+import { generatePrivateKey } from "@/utils/calcBTC";
 import { ethers } from "ethers";
+import { NextPage } from "next";
+import { useEffect, useState } from "react";
 
 const Home: NextPage = () => {
   const [keyData, setKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
+  const [bitcoinKeyData, setBitcoinKeyData] = useState<any[]>([]);
   const [isBitcoin, setIsBitcoin] = useState(true);
+  const [publicKeyType, setPublicKeyType] = useState(0);
+  const [privateKeyType, setPrivateKeyType] = useState(0);
+
   const rpc = process.env.NEXT_PUBLIC_INFURA_ENDPOINT;
 
   const provider = new ethers.JsonRpcProvider(rpc);
-
-  // 256비트 무작위 개인 키 생성
-  function generatePrivateKey(): Buffer {
-    return randomBytes(32); // 32 바이트 = 256비트
-  }
-
-  // SHA-256 해시 계산
-  function sha256(buffer: Buffer): Buffer {
-    return createHash("sha256").update(buffer).digest();
-  }
-
-  // WIF 형식으로 변환하는 함수
-  function privateKeyToWIF(privateKey: Buffer): string {
-    const prefix = Buffer.from([0x80]); // 비트코인의 개인 키는 0x80으로 시작
-    const suffix = Buffer.from([0x01]); // 압축된 공개 키를 사용하므로 0x01 추가
-    const extendedKey = Buffer.concat([prefix, privateKey, suffix]);
-
-    // 2번 SHA-256을 적용해 체크섬 생성
-    const checksum = sha256(sha256(extendedKey)).slice(0, 4);
-
-    // WIF는 개인 키, 압축 여부 및 체크섬을 포함
-    const wifKey = Buffer.concat([extendedKey, checksum]);
-
-    // Base58로 인코딩
-    return bs58.encode(wifKey);
-  }
-
-  // 임의의 비트코인 잔액 생성 함수
-  function generateRandomBalance(): string {
-    return (Math.random() * 10).toFixed(8); // 0에서 10까지의 무작위 비트코인 잔액 생성
-  }
 
   async function getBitcoinBalance(address: string): Promise<string> {
     try {
@@ -57,23 +29,18 @@ const Home: NextPage = () => {
     }
   }
 
-  // 임의의 공개 키 생성 함수 (간단히 무작위 값을 사용)
-  function generateRandomPublicKey(): string {
-    return bs58.encode(randomBytes(33)); // 비트코인 공개 키는 일반적으로 33바이트
-  }
-
   const generateData = async () => {
     const generatedKeys = [];
-    setKeyData([]);
+    setBitcoinKeyData([]);
     for (let i = 0; i < 8; i++) {
-      const privateKey = generatePrivateKey();
-      const privateKeyWIF = privateKeyToWIF(privateKey);
-      const publicKey = generateRandomPublicKey();
+      const { P2PKH, P2WPKH, privateKeyHEX, wif }: any = await generatePrivateKey();
+      const privateKeyWIF = wif;
+
       // const balance = await getBitcoinBalance(publicKey);
       const balance = "0";
-      generatedKeys.push({ privateKey: privateKeyWIF, publicKey, balance });
+      generatedKeys.push({ privateKeyHEX, privateKeyWIF, P2PKH, P2WPKH, balance });
     }
-    setKeyData(generatedKeys);
+    setBitcoinKeyData(generatedKeys);
   };
 
   const generateETHData = async () => {
@@ -131,28 +98,90 @@ const Home: NextPage = () => {
         </div>
         <button
           onClick={() => loadDataByState()}
-          className={`w-full border border-blue-800 h-10 rounded-lg mb-2 hover:bg-blue-400`}
+          className={`w-full border border-blue-800  h-10 rounded-lg mb-2 hover:bg-blue-400`}
         >
           Reload
         </button>
-        {keyData.map((key, index) => (
-          <div key={index} className="p-2 border rounded bg-white">
-            <div>
-              <span className="font-bold">Public Key : </span>
-              {key.publicKey}
+        {isBitcoin && (
+          <>
+            <div className="flex items-center gap-2 h-10 w-full">
+              <h1 className="font-bold"> Public Key Type :</h1>
+              <button
+                onClick={() => setPublicKeyType(0)}
+                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
+                  publicKeyType == 0 && "bg-blue-400"
+                }`}
+              >
+                P2WPKH
+              </button>
+              <button
+                onClick={() => setPublicKeyType(1)}
+                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
+                  publicKeyType == 1 && "bg-blue-400"
+                }`}
+              >
+                P2PKH
+              </button>
             </div>
-            <div>
-              <span className="font-bold">Private Key : </span>
-              {key.privateKey}
+            <div className="flex items-center gap-2 h-10 mb-2">
+              <h1 className="font-bold"> Private Key Type :</h1>
+              <button
+                onClick={() => setPrivateKeyType(0)}
+                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
+                  privateKeyType == 0 && "bg-blue-400"
+                }`}
+              >
+                WIP
+              </button>
+              <button
+                onClick={() => setPrivateKeyType(1)}
+                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
+                  privateKeyType == 1 && "bg-blue-400"
+                }`}
+              >
+                Hexdecimal
+              </button>
             </div>
-            <div>
-              <span className="font-bold">Balance : </span>
-              <span>
-                {key.balance} {isBitcoin ? "BTC" : "ETH"}
-              </span>
-            </div>
-          </div>
-        ))}
+          </>
+        )}
+
+        {isBitcoin
+          ? bitcoinKeyData.map((key, index) => (
+              <div key={index} className="p-2 border rounded bg-white">
+                <div>
+                  <span className="font-bold">Public Key : </span>
+                  {publicKeyType == 0 ? key.P2WPKH : key.P2PKH}
+                </div>
+                <div>
+                  <span className="font-bold">Private Key : </span>
+                  {privateKeyType == 0 ? key.privateKeyWIF : key.privateKeyHEX}
+                </div>
+                <div>
+                  <span className="font-bold">Balance : </span>
+                  <span>
+                    {key.balance} {isBitcoin ? "BTC" : "ETH"}
+                  </span>
+                </div>
+              </div>
+            ))
+          : keyData.map((key, index) => (
+              <div key={index} className="p-2 border rounded bg-white">
+                <div>
+                  <span className="font-bold">Public Key : </span>
+                  {key.publicKey}
+                </div>
+                <div>
+                  <span className="font-bold">Private Key : </span>
+                  {key.privateKey}
+                </div>
+                <div>
+                  <span className="font-bold">Balance : </span>
+                  <span>
+                    {key.balance} {isBitcoin ? "BTC" : "ETH"}
+                  </span>
+                </div>
+              </div>
+            ))}
       </div>
     </main>
   );

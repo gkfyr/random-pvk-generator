@@ -11,7 +11,8 @@ export async function handler(request: Request) {
   }
 
   try {
-    const response = await axios.get(`https://blockchain.info/rawaddr/${address}`);
+    const response = await axios.get(`https://api.blockcypher.com/v1/btc/main/addrs/${address}/balance`);
+    console.log(response.data);
     return NextResponse.json(response.data, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: "Error fetching balance" }, { status: 500 });
