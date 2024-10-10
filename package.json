@@ -1,6 +1,7 @@
 {
   "name": "random-pvk-generator",
   "version": "0.1.0",
+  "author": "gkfyr <hrkairdrop@gmail.com> (https://github.com/gkfyr)",
   "private": true,
   "scripts": {
     "dev": "next dev",

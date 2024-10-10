@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🗝️ Random Private Key Generator
 
-## Getting Started
+This is a web application that allows users to generate random private keys and corresponding public addresses for **Bitcoin** and **Ethereum**. Users can also view their balances (for Ethereum, it queries real-time balances using the Ethereum blockchain). The application uses **BitcoinJS**, **Ethers.js**, and **Elliptic** libraries for cryptographic key generation.
 
-First, run the development server:
+## 🚀 Features
+
+- **Bitcoin and Ethereum Key Generation:**
+
+  - Easily generate random private keys for Bitcoin and Ethereum.
+  - Bitcoin private keys can be viewed in WIF (Wallet Import Format) or hexadecimal.
+  - Ethereum private keys are displayed in hexadecimal.
+
+- **Public Key Formats for Bitcoin:**
+
+  - Supports both P2PKH (Pay-to-PubKey-Hash) and P2WPKH (Pay-to-Witness-PubKey-Hash) formats for Bitcoin public addresses.
+
+- **Balance Check for Ethereum:**
+
+  - Queries real-time Ethereum balances using the Infura API.
+  - Displays the balance in ETH for Ethereum addresses.
+
+- **Dynamic UI:**
+
+  - Toggle between Bitcoin and Ethereum key generation.
+  - Choose between different public key and private key formats for Bitcoin.
+
+## 🛠️ Built With
+
+- **Next.js** - React framework for server-side rendering and static site generation.
+- **BitcoinJS** - JavaScript library for Bitcoin cryptography and transactions.
+- **Ethers.js** - Library for interacting with the Ethereum blockchain.
+- **Elliptic** - Elliptic curve cryptography library (secp256k1 for Bitcoin and Ethereum).
+
+## 📦 Installation
+
+To set up this project locally, follow these steps:
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/gkfyr/random-pvk-generator.git
+```
+
+2. Navigate to the project folder:
+
+```bash
+cd random-pvk-generator
+```
+
+3. Install the dependencies:
+
+```bash
+npm install
+```
+
+4. Set up the .env file with your Infura API endpoint:
+
+```bash
+NEXT_PUBLIC_INFURA_ENDPOINT=<YOUR_INFURA_ENDPOINT>
+```
+
+Replace <YOUR_INFURA_ENDPOINT> with your Infura Project ID.
+
+5. Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 to view the app in the browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📋 Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Select either **Bitcoin** or **Ethereum** using the toggle buttons.
+2. For Bitcoin, you can choose the type of public key (P2PKH or P2WPKH) and private key format (WIF or Hexadecimal).
+3. Click the **Reload** button to generate 8 new keys and addresses.
+4. If Ethereum is selected, balances for the generated addresses will be fetched automatically.
 
-## Learn More
+## 📂 Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+- `pages/` - Contains Next.js pages.
+- `components/` - Reusable React components.
+- `utils/` - Utility functions such as Bitcoin key generation logic.
+- `.env` - Environment variables for API keys.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📝 License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+This project is licensed under the MIT License. See the LICENSE file for details.
 
-## Deploy on Vercel
+## 📧 Contact
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+If you have any questions or feedback, feel free to reach out to me at:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **GitHub:** https://github.com/gkfyr
+- **Email:** hrkairdrop@gmail.com

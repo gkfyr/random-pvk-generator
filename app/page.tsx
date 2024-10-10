@@ -139,7 +139,7 @@ const Home: NextPage = () => {
                   privateKeyType == 1 && "bg-blue-400"
                 }`}
               >
-                Hexdecimal
+                Hexadecimal
               </button>
             </div>
           </>
