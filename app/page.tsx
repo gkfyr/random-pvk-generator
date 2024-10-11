@@ -16,19 +16,6 @@ const Home: NextPage = () => {
 
   const provider = new ethers.JsonRpcProvider(rpc);
 
-  async function getBitcoinBalance(address: string): Promise<string> {
-    try {
-      const response = await fetch(`/api/balance?address=${address}`);
-      const data = await response.json();
-      const balanceInSatoshi = data.balance; // 잔액은 사토시 단위로 반환됨
-      const balanceInBTC = (balanceInSatoshi / 100000000).toFixed(8); // 사토시 -> BTC로 변환
-      return balanceInBTC;
-    } catch (error) {
-      console.error("Error fetching balance:", error);
-      return "Error";
-    }
-  }
-
   const generateData = async () => {
     const generatedKeys = [];
     setBitcoinKeyData([]);
