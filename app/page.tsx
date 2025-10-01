@@ -5,39 +5,60 @@ import { ethers } from "ethers";
 import { NextPage } from "next";
 import { useEffect, useState } from "react";
 
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch (e) {
+          // no-op
+        }
+      }}
+      className={`btn-ghost text-xs px-2 py-1 ${copied ? "text-emerald-300" : "text-slate-300"}`}
+      aria-label="Copy to clipboard"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+};
+
 const Home: NextPage = () => {
   const [keyData, setKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
   const [bitcoinKeyData, setBitcoinKeyData] = useState<any[]>([]);
   const [isBitcoin, setIsBitcoin] = useState(true);
   const [publicKeyType, setPublicKeyType] = useState(0);
   const [privateKeyType, setPrivateKeyType] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const rpc = process.env.NEXT_PUBLIC_INFURA_ENDPOINT;
 
-  const provider = new ethers.JsonRpcProvider(rpc);
-
   const generateData = async () => {
-    const generatedKeys = [];
+    setLoading(true);
+    const generatedKeys: any[] = [];
     setBitcoinKeyData([]);
     for (let i = 0; i < 8; i++) {
       const { P2PKH, P2WPKH, privateKeyHEX, wif }: any = await generatePrivateKey();
       const privateKeyWIF = wif;
-
-      // const balance = await getBitcoinBalance(publicKey);
-      const balance = "0";
+      const balance = "0"; // Placeholder; on-chain check omitted
       generatedKeys.push({ privateKeyHEX, privateKeyWIF, P2PKH, P2WPKH, balance });
     }
     setBitcoinKeyData(generatedKeys);
+    setLoading(false);
   };
 
   const generateETHData = async () => {
-    const generatedKeys = [];
+    setLoading(true);
+    const generatedKeys: { privateKey: string; publicKey: string; balance: string | null }[] = [];
     setKeyData([]);
     for (let i = 0; i < 8; i++) {
       const hdNodeWallet = ethers.HDNodeWallet.createRandom();
-      // HD 지갑을 일반 지갑으로 변환
-      const randomWallet = new ethers.Wallet(hdNodeWallet.privateKey, provider);
-
+      const randomWallet = rpc
+        ? new ethers.Wallet(hdNodeWallet.privateKey, new ethers.JsonRpcProvider(rpc))
+        : new ethers.Wallet(hdNodeWallet.privateKey);
       generatedKeys.push({
         privateKey: randomWallet.privateKey,
         publicKey: randomWallet.address,
@@ -46,14 +67,24 @@ const Home: NextPage = () => {
     }
     setKeyData(generatedKeys);
 
+    if (!rpc) {
+      // No provider available; mark balances as N/A gracefully
+      setKeyData((prev) => prev.map((k) => ({ ...k, balance: "N/A" })));
+      setLoading(false);
+      return;
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpc);
     generatedKeys.forEach(async (key, index) => {
       try {
         const balance = ethers.formatEther(await provider.getBalance(key.publicKey));
         setKeyData((prevKeys) => prevKeys.map((k, idx) => (idx === index ? { ...k, balance } : k)));
       } catch (error) {
-        alert("Too many requests. Please try again 10 minutes later.");
+        // Keep it quiet but informative visually below
+        setKeyData((prev) => prev.map((k, idx) => (idx === index ? { ...k, balance: "N/A" } : k)));
+      } finally {
+        setLoading(false);
       }
-      // 개별 키의 잔고를 업데이트
     });
   };
 
@@ -63,112 +94,161 @@ const Home: NextPage = () => {
 
   useEffect(() => {
     loadDataByState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBitcoin]);
 
   return (
     <main>
-      <div className="mx-auto w-[800px] bg-blue-300 p-4">
-        <header className="text-center text-2xl font-bold mb-4">Random Private Key Generator!</header>
-        <div className="w-full flex mb-2 font-bold gap-2">
-          <button
-            onClick={() => setIsBitcoin(true)}
-            className={`w-1/2 border border-blue-800 h-10 rounded-lg ${isBitcoin && "bg-blue-400"}`}
-          >
-            Bitcoin
-          </button>
-          <button
-            onClick={() => setIsBitcoin(false)}
-            className={`w-1/2 border border-blue-800 h-10 rounded-lg ${!isBitcoin && "bg-blue-400"}`}
-          >
-            Ethereum
-          </button>
+      <div className="container-page">
+        <div className="mb-6 text-center">
+          <h1 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight">
+            <span className="bg-gradient-to-r from-indigo-300 via-sky-300 to-emerald-300 bg-clip-text text-transparent">
+              Random Private Key Generator
+            </span>
+          </h1>
+          <p className="mt-2 text-slate-400">Generate Bitcoin or Ethereum keys instantly. Copy with one click.</p>
         </div>
-        <button
-          onClick={() => loadDataByState()}
-          className={`w-full border border-blue-800  h-10 rounded-lg mb-2 hover:bg-blue-400`}
-        >
-          Reload
-        </button>
-        {isBitcoin && (
-          <>
-            <div className="flex items-center gap-2 h-10 w-full">
-              <h1 className="font-bold"> Public Key Type :</h1>
-              <button
-                onClick={() => setPublicKeyType(0)}
-                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
-                  publicKeyType == 0 && "bg-blue-400"
-                }`}
-              >
-                P2WPKH
-              </button>
-              <button
-                onClick={() => setPublicKeyType(1)}
-                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
-                  publicKeyType == 1 && "bg-blue-400"
-                }`}
-              >
-                P2PKH
-              </button>
-            </div>
-            <div className="flex items-center gap-2 h-10 mb-2">
-              <h1 className="font-bold"> Private Key Type :</h1>
-              <button
-                onClick={() => setPrivateKeyType(0)}
-                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
-                  privateKeyType == 0 && "bg-blue-400"
-                }`}
-              >
-                WIP
-              </button>
-              <button
-                onClick={() => setPrivateKeyType(1)}
-                className={` border border-blue-800 p-1 rounded-lg hover:bg-blue-200 ${
-                  privateKeyType == 1 && "bg-blue-400"
-                }`}
-              >
-                Hexadecimal
-              </button>
-            </div>
-          </>
-        )}
 
-        {isBitcoin
-          ? bitcoinKeyData.map((key, index) => (
-              <div key={index} className="p-2 border rounded bg-white">
-                <div>
-                  <span className="font-bold">Public Key : </span>
-                  {publicKeyType == 0 ? key.P2WPKH : key.P2PKH}
-                </div>
-                <div>
-                  <span className="font-bold">Private Key : </span>
-                  {privateKeyType == 0 ? key.privateKeyWIF : key.privateKeyHEX}
-                </div>
-                <div>
-                  <span className="font-bold">Balance : </span>
-                  <span>
-                    {key.balance} {isBitcoin ? "BTC" : "ETH"}
-                  </span>
+        <section className="card p-4 md:p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="segmented w-full md:w-auto">
+              <button aria-pressed={isBitcoin} className="w-1/2 md:w-auto" onClick={() => setIsBitcoin(true)}>
+                Bitcoin
+              </button>
+              <button aria-pressed={!isBitcoin} className="w-1/2 md:w-auto" onClick={() => setIsBitcoin(false)}>
+                Ethereum
+              </button>
+            </div>
+
+            <button onClick={loadDataByState} className="btn-primary w-full md:w-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                <path d="M12 6V3L8 7l4 4V8c2.757 0 5 2.243 5 5a5 5 0 0 1-9.584 2.001 1 1 0 1 0-1.832.998A7 7 0 1 0 12 6Z" />
+              </svg>
+              Reload
+            </button>
+          </div>
+
+          {isBitcoin && (
+            <div className="mt-12  sm:grid-cols-2">
+              <div className="flex items-center gap-3">
+                <span className="label w-[90px]">Public Key</span>
+                <div className="segmented">
+                  <button aria-pressed={publicKeyType === 0} onClick={() => setPublicKeyType(0)}>
+                    P2WPKH
+                  </button>
+                  <button aria-pressed={publicKeyType === 1} onClick={() => setPublicKeyType(1)}>
+                    P2PKH
+                  </button>
                 </div>
               </div>
-            ))
-          : keyData.map((key, index) => (
-              <div key={index} className="p-2 border rounded bg-white">
-                <div>
-                  <span className="font-bold">Public Key : </span>
-                  {key.publicKey}
+              <div className="flex mt-2 items-center gap-3">
+                <span className="label w-[90px]">Private Key</span>
+                <div className="segmented">
+                  <button aria-pressed={privateKeyType === 0} onClick={() => setPrivateKeyType(0)}>
+                    WIF
+                  </button>
+                  <button aria-pressed={privateKeyType === 1} onClick={() => setPrivateKeyType(1)}>
+                    Hexadecimal
+                  </button>
                 </div>
-                <div>
-                  <span className="font-bold">Private Key : </span>
-                  {key.privateKey}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-3">
+          {loading &&
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={`s-${i}`} className="card p-4 animate-pulse">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="h-4 w-10 rounded bg-white/10" />
+                  <div className="h-4 w-10 rounded bg-white/10" />
                 </div>
-                <div>
-                  <span className="font-bold">Balance : </span>
-                  <span>
-                    {key.balance} {isBitcoin ? "BTC" : "ETH"}
-                  </span>
+                <div className="field">
+                  <div className="field-label">&nbsp;</div>
+                  <div className="field-value">
+                    <div className="h-3 w-14 rounded bg-white/10 mt-1" />
+                    <div className="h-4 flex-1 rounded bg-white/10" />
+                  </div>
+                </div>
+                <div className="field">
+                  <div className="field-label">&nbsp;</div>
+                  <div className="field-value">
+                    <div className="h-3 w-14 rounded bg-white/10 mt-1" />
+                    <div className="h-4 flex-1 rounded bg-white/10" />
+                  </div>
+                </div>
+                <div className="field">
+                  <div className="field-label">&nbsp;</div>
+                  <div className="field-value">
+                    <div className="h-3 w-16 rounded bg-white/10 mt-1" />
+                    <div className="h-4 w-24 rounded bg-white/10" />
+                  </div>
                 </div>
               </div>
             ))}
+
+          {!loading &&
+            (isBitcoin
+              ? bitcoinKeyData.map((key, index) => (
+                  <div key={index} className="card p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="pill">BTC</span>
+                    </div>
+                    <div>
+                      <div className="field">
+                        <div className="field-label">Public</div>
+                        <div className="field-value">
+                          <div className="codebox">{publicKeyType === 0 ? key.P2WPKH : key.P2PKH}</div>
+                          <CopyButton text={publicKeyType === 0 ? key.P2WPKH : key.P2PKH} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Private</div>
+                        <div className="field-value">
+                          <div className="codebox">{privateKeyType === 0 ? key.privateKeyWIF : key.privateKeyHEX}</div>
+                          <CopyButton text={privateKeyType === 0 ? key.privateKeyWIF : key.privateKeyHEX} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Balance</div>
+                        <div className="field-value ">
+                          <code className="text-white text-[12px] w-auto px-2 py-1">{key.balance} BTC</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              : keyData.map((key, index) => (
+                  <div key={index} className="card p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="pill">ETH</span>
+                    </div>
+                    <div>
+                      <div className="field">
+                        <div className="field-label">Public</div>
+                        <div className="field-value">
+                          <div className="codebox">{key.publicKey}</div>
+                          <CopyButton text={key.publicKey} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Private</div>
+                        <div className="field-value">
+                          <div className="codebox">{key.privateKey}</div>
+                          <CopyButton text={key.privateKey} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Balance</div>
+                        <div className="field-value">
+                          <code className="text-[12px] text-white w-auto px-2 py-1">{key.balance} ETH</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )))}
+        </section>
       </div>
     </main>
   );

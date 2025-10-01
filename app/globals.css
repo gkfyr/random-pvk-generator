@@ -1,3 +1,68 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Theme variables */
+:root {
+  --background: 15 23 42; /* slate-900 */
+  --foreground: 226 232 240; /* slate-200 */
+}
+
+@layer base {
+  html,
+  body {
+    @apply h-full;
+  }
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-color: rgb(2 6 23); /* slate-950 fallback to avoid seams */
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply max-w-5xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-12;
+  }
+  .card {
+    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-md shadow-lg shadow-black/20;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-indigo-500 text-white hover:bg-indigo-400 active:bg-indigo-600;
+  }
+  .btn-ghost {
+    @apply btn bg-white/0 text-slate-200 hover:bg-white/10;
+  }
+  .segmented {
+    @apply inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-1;
+  }
+  .segmented > button {
+    @apply px-3 py-1.5 rounded-md text-sm font-medium text-slate-200 transition-colors;
+  }
+  .segmented > button[aria-pressed="true"] {
+    @apply bg-indigo-500 text-white shadow;
+  }
+  .mono {
+    @apply font-mono text-[13px] leading-relaxed break-all text-slate-100;
+  }
+  .label {
+    @apply text-xs uppercase tracking-wide text-slate-400 font-semibold;
+  }
+  .field {
+    @apply flex items-center sm:grid-cols-12 gap-2 sm:gap-3 py-2;
+  }
+  .field-label {
+    @apply col-span-12 sm:col-span-2 w-[60px] label;
+  }
+  .field-value {
+    @apply col-span-12 sm:col-span-10 w-full  gap-2 min-w-0 flex items-center justify-between;
+  }
+  .codebox {
+    @apply mono w-full rounded-md bg-black/30 border border-white/10 px-3 py-2;
+  }
+  .pill {
+    @apply inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-300;
+  }
+}
