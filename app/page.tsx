@@ -4,6 +4,8 @@ import { generatePrivateKey } from "@/utils/calcBTC";
 import { ethers } from "ethers";
 import { NextPage } from "next";
 import { useEffect, useState } from "react";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 const CopyButton = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
@@ -26,10 +28,12 @@ const CopyButton = ({ text }: { text: string }) => {
   );
 };
 
+
 const Home: NextPage = () => {
   const [keyData, setKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
   const [bitcoinKeyData, setBitcoinKeyData] = useState<any[]>([]);
-  const [isBitcoin, setIsBitcoin] = useState(true);
+  const [solanaKeyData, setSolanaKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
+  const [network, setNetwork] = useState<"bitcoin" | "ethereum" | "solana">("bitcoin");
   const [publicKeyType, setPublicKeyType] = useState(0);
   const [privateKeyType, setPrivateKeyType] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -89,13 +93,31 @@ const Home: NextPage = () => {
   };
 
   const loadDataByState = () => {
-    isBitcoin ? generateData() : generateETHData();
+    if (network === "bitcoin") return generateData();
+    if (network === "ethereum") return generateETHData();
+    return generateSOLData();
+  };
+
+  const generateSOLData = async () => {
+    setLoading(true);
+    const generated: { privateKey: string; publicKey: string; balance: string | null }[] = [];
+    setSolanaKeyData([]);
+    for (let i = 0; i < 8; i++) {
+      const kp = Keypair.generate();
+      generated.push({
+        publicKey: kp.publicKey.toBase58(),
+        privateKey: bs58.encode(kp.secretKey),
+        balance: "N/A",
+      });
+    }
+    setSolanaKeyData(generated);
+    setLoading(false);
   };
 
   useEffect(() => {
     loadDataByState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBitcoin]);
+  }, [network]);
 
   return (
     <main>
@@ -106,17 +128,20 @@ const Home: NextPage = () => {
               Random Private Key Generator
             </span>
           </h1>
-          <p className="mt-2 text-slate-400">Generate Bitcoin or Ethereum keys instantly. Copy with one click.</p>
+          <p className="mt-2 text-slate-400">Generate Bitcoin, Ethereum, or Solana keys instantly. Copy with one click.</p>
         </div>
 
         <section className="card p-4 md:p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="segmented w-full md:w-auto">
-              <button aria-pressed={isBitcoin} className="w-1/2 md:w-auto" onClick={() => setIsBitcoin(true)}>
+              <button aria-pressed={network === "bitcoin"} className="w-1/3 md:w-auto" onClick={() => setNetwork("bitcoin")}>
                 Bitcoin
               </button>
-              <button aria-pressed={!isBitcoin} className="w-1/2 md:w-auto" onClick={() => setIsBitcoin(false)}>
+              <button aria-pressed={network === "ethereum"} className="w-1/3 md:w-auto" onClick={() => setNetwork("ethereum")}>
                 Ethereum
+              </button>
+              <button aria-pressed={network === "solana"} className="w-1/3 md:w-auto" onClick={() => setNetwork("solana")}>
+                Solana
               </button>
             </div>
 
@@ -128,7 +153,7 @@ const Home: NextPage = () => {
             </button>
           </div>
 
-          {isBitcoin && (
+          {network === "bitcoin" && (
             <div className="mt-12  sm:grid-cols-2">
               <div className="flex items-center gap-3">
                 <span className="label w-[90px]">Public Key</span>
@@ -189,7 +214,7 @@ const Home: NextPage = () => {
             ))}
 
           {!loading &&
-            (isBitcoin
+            (network === "bitcoin"
               ? bitcoinKeyData.map((key, index) => (
                   <div key={index} className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
@@ -219,7 +244,7 @@ const Home: NextPage = () => {
                     </div>
                   </div>
                 ))
-              : keyData.map((key, index) => (
+              : network === "ethereum" ? keyData.map((key, index) => (
                   <div key={index} className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="pill">ETH</span>
@@ -243,6 +268,34 @@ const Home: NextPage = () => {
                         <div className="field-label">Balance</div>
                         <div className="field-value">
                           <code className="text-[12px] text-white w-auto px-2 py-1">{key.balance} ETH</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )) : solanaKeyData.map((key, index) => (
+                  <div key={index} className="card p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="pill">SOL</span>
+                    </div>
+                    <div>
+                      <div className="field">
+                        <div className="field-label">Public</div>
+                        <div className="field-value">
+                          <div className="codebox">{key.publicKey}</div>
+                          <CopyButton text={key.publicKey} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Private</div>
+                        <div className="field-value">
+                          <div className="codebox">{key.privateKey}</div>
+                          <CopyButton text={key.privateKey} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Balance</div>
+                        <div className="field-value">
+                          <code className="text-[12px] text-white w-auto px-2 py-1">N/A SOL</code>
                         </div>
                       </div>
                     </div>

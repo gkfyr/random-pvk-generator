@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "axios": "^1.7.7",
+    "@solana/web3.js": "^1.95.3",
+    "bs58": "^5.0.0",
     "bitcoinjs-lib": "^7.0.0-rc.0",
     "bs58check": "^4.0.0",
     "crypto": "^1.0.1",
