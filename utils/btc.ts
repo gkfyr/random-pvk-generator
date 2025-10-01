@@ -2,6 +2,7 @@ import { randomBytes, createHash } from "crypto";
 import { payments } from "bitcoinjs-lib";
 import bs58check from "bs58check";
 import { ec as EC } from "elliptic";
+import axios from "axios";
 
 // secp256k1 곡선 사용
 const ec = new EC("secp256k1");
@@ -37,4 +38,22 @@ export async function generateBtcPrivateKey() {
   const { address: P2WPKH } = payments.p2wpkh({ pubkey: publicKey });
 
   return { P2PKH, P2WPKH, privateKeyHEX, wif };
+}
+
+export async function fetchBtcBalance(address: string): Promise<string> {
+  try {
+    const url = `https://blockstream.info/api/address/${address}`;
+    const { data } = await axios.get(url, { timeout: 15000 });
+    const funded: number = data?.chain_stats?.funded_txo_sum ?? 0;
+    const spent: number = data?.chain_stats?.spent_txo_sum ?? 0;
+    const sats = Math.max(0, funded - spent);
+    const btc = sats / 1e8;
+    return btc.toString();
+  } catch {
+    return "N/A";
+  }
+}
+
+export async function fetchBtcBalances(addresses: string[]): Promise<string[]> {
+  return Promise.all(addresses.map((a) => fetchBtcBalance(a)));
 }

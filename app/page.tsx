@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createSolanaKeys, fetchSolBalances } from "@/utils/sol";
 import { createSuiKeys, fetchSuiBalances } from "@/utils/sui";
 import { createRandomEthKeys, fetchEthBalances } from "@/utils/eth";
+import { fetchBtcBalances } from "@/utils/btc";
 
 const CopyButton = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
@@ -51,11 +52,30 @@ const Home: NextPage = () => {
     for (let i = 0; i < 8; i++) {
       const { P2PKH, P2WPKH, privateKeyHEX, wif }: any = await generateBtcPrivateKey();
       const privateKeyWIF = wif;
-      const balance = "0"; // Placeholder; on-chain check omitted
-      generatedKeys.push({ privateKeyHEX, privateKeyWIF, P2PKH, P2WPKH, balance });
+      generatedKeys.push({
+        privateKeyHEX,
+        privateKeyWIF,
+        P2PKH,
+        P2WPKH,
+        balanceP2WPKH: "Loading...",
+        balanceP2PKH: "Loading...",
+      });
     }
     setBitcoinKeyData(generatedKeys);
-    setLoading(false);
+
+    try {
+      const [bW, bP] = await Promise.all([
+        fetchBtcBalances(generatedKeys.map((k) => k.P2WPKH)),
+        fetchBtcBalances(generatedKeys.map((k) => k.P2PKH)),
+      ]);
+      setBitcoinKeyData((prev) =>
+        prev.map((k, i) => ({ ...k, balanceP2WPKH: bW[i] ?? "N/A", balanceP2PKH: bP[i] ?? "N/A" }))
+      );
+    } catch (e) {
+      setBitcoinKeyData((prev) => prev.map((k) => ({ ...k, balanceP2WPKH: "N/A", balanceP2PKH: "N/A" })));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generateETHData = async () => {
@@ -164,9 +184,10 @@ const Home: NextPage = () => {
               Reload
             </button>
           </div>
-
-          {network === "bitcoin" && (
-            <div className="mt-12  sm:grid-cols-2">
+        </section>
+        {network === "bitcoin" && (
+          <section className="card p-4 md:p-6 mb-6">
+            <div className="flex gap-10 items-center">
               <div className="flex items-center gap-3">
                 <span className="label w-[90px]">Public Key</span>
                 <div className="segmented">
@@ -178,7 +199,7 @@ const Home: NextPage = () => {
                   </button>
                 </div>
               </div>
-              <div className="flex mt-2 items-center gap-3">
+              <div className="flex items-center gap-3">
                 <span className="label w-[90px]">Private Key</span>
                 <div className="segmented">
                   <button aria-pressed={privateKeyType === 0} onClick={() => setPrivateKeyType(0)}>
@@ -190,36 +211,39 @@ const Home: NextPage = () => {
                 </div>
               </div>
             </div>
-          )}
-        </section>
-
+          </section>
+        )}
         <section className="flex flex-col gap-3">
           {loading &&
-            Array.from({ length: 6 }).map((_, i) => (
+            Array.from({ length: 8 }).map((_, i) => (
               <div key={`s-${i}`} className="card p-4 animate-pulse">
                 <div className="mb-2 flex items-center justify-between">
-                  <div className="h-4 w-10 rounded bg-white/10" />
-                  <div className="h-4 w-10 rounded bg-white/10" />
+                  <div className="h-5 w-10 rounded bg-white/10" />
                 </div>
                 <div className="field">
-                  <div className="field-label">&nbsp;</div>
+                  <div className="field-label">
+                    <div className="h-3 w-14 rounded bg-white/10" />
+                  </div>
                   <div className="field-value">
-                    <div className="h-3 w-14 rounded bg-white/10 mt-1" />
-                    <div className="h-4 flex-1 rounded bg-white/10" />
+                    <div className="h-8 w-full rounded-md border border-white/10 bg-white/10" />
+                    <div className="h-6 w-12 rounded bg-white/10" />
                   </div>
                 </div>
                 <div className="field">
-                  <div className="field-label">&nbsp;</div>
+                  <div className="field-label">
+                    <div className="h-3 w-14 rounded bg-white/10" />
+                  </div>
                   <div className="field-value">
-                    <div className="h-3 w-14 rounded bg-white/10 mt-1" />
-                    <div className="h-4 flex-1 rounded bg-white/10" />
+                    <div className="h-8 w-full rounded-md border border-white/10 bg-white/10" />
+                    <div className="h-6 w-12 rounded bg-white/10" />
                   </div>
                 </div>
                 <div className="field">
-                  <div className="field-label">&nbsp;</div>
+                  <div className="field-label">
+                    <div className="h-3 w-16 rounded bg-white/10" />
+                  </div>
                   <div className="field-value">
-                    <div className="h-3 w-16 rounded bg-white/10 mt-1" />
-                    <div className="h-4 w-24 rounded bg-white/10" />
+                    <div className="h-6 w-24 rounded bg-white/10" />
                   </div>
                 </div>
               </div>
@@ -250,7 +274,9 @@ const Home: NextPage = () => {
                       <div className="field">
                         <div className="field-label">Balance</div>
                         <div className="field-value ">
-                          <code className="text-white text-[12px] w-auto px-2 py-1">{key.balance} BTC</code>
+                          <code className="text-white text-[12px] w-auto px-2 py-1">
+                            {(publicKeyType === 0 ? key.balanceP2WPKH : key.balanceP2PKH) ?? key.balance ?? "N/A"} BTC
+                          </code>
                         </div>
                       </div>
                     </div>
