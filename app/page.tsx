@@ -1,13 +1,11 @@
 "use client";
 
-import { generatePrivateKey } from "@/utils/calcBTC";
-import { ethers } from "ethers";
+import { generateBtcPrivateKey } from "@/utils/btc";
 import { NextPage } from "next";
 import { useEffect, useState } from "react";
-import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
-import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
-import { SuiClient } from "@mysten/sui.js/client";
-import bs58 from "bs58";
+import { createSolanaKeys, fetchSolBalances } from "@/utils/sol";
+import { createSuiKeys, fetchSuiBalances } from "@/utils/sui";
+import { createRandomEthKeys, fetchEthBalances } from "@/utils/eth";
 
 const CopyButton = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false);
@@ -37,14 +35,12 @@ const Home: NextPage = () => {
     { privateKey: string; publicKey: string; balance: string | null }[]
   >([]);
   const [network, setNetwork] = useState<"bitcoin" | "ethereum" | "solana" | "sui">("bitcoin");
-  const [suiKeyData, setSuiKeyData] = useState<
-    { privateKey: string; publicKey: string; balance: string | null }[]
-  >([]);
+  const [suiKeyData, setSuiKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
   const [publicKeyType, setPublicKeyType] = useState(0);
   const [privateKeyType, setPrivateKeyType] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  const rpc = process.env.NEXT_PUBLIC_INFURA_ENDPOINT;
+  const ethRpc = process.env.NEXT_PUBLIC_INFURA_ENDPOINT || "https://eth.drpc.org";
   const solRpc = process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
   const suiRpc = process.env.NEXT_PUBLIC_SUI_RPC || "https://fullnode.devnet.sui.io";
 
@@ -53,7 +49,7 @@ const Home: NextPage = () => {
     const generatedKeys: any[] = [];
     setBitcoinKeyData([]);
     for (let i = 0; i < 8; i++) {
-      const { P2PKH, P2WPKH, privateKeyHEX, wif }: any = await generatePrivateKey();
+      const { P2PKH, P2WPKH, privateKeyHEX, wif }: any = await generateBtcPrivateKey();
       const privateKeyWIF = wif;
       const balance = "0"; // Placeholder; on-chain check omitted
       generatedKeys.push({ privateKeyHEX, privateKeyWIF, P2PKH, P2WPKH, balance });
@@ -64,40 +60,22 @@ const Home: NextPage = () => {
 
   const generateETHData = async () => {
     setLoading(true);
-    const generatedKeys: { privateKey: string; publicKey: string; balance: string | null }[] = [];
-    setKeyData([]);
-    for (let i = 0; i < 8; i++) {
-      const hdNodeWallet = ethers.HDNodeWallet.createRandom();
-      const randomWallet = rpc
-        ? new ethers.Wallet(hdNodeWallet.privateKey, new ethers.JsonRpcProvider(rpc))
-        : new ethers.Wallet(hdNodeWallet.privateKey);
-      generatedKeys.push({
-        privateKey: randomWallet.privateKey,
-        publicKey: randomWallet.address,
-        balance: "Loading...",
-      });
-    }
-    setKeyData(generatedKeys);
+    const generatedKeys = createRandomEthKeys(8, ethRpc);
+    setKeyData(generatedKeys.map((k) => ({ ...k, balance: "Loading..." })));
 
-    if (!rpc) {
+    if (!ethRpc) {
       // No provider available; mark balances as N/A gracefully
       setKeyData((prev) => prev.map((k) => ({ ...k, balance: "N/A" })));
       setLoading(false);
       return;
     }
 
-    const provider = new ethers.JsonRpcProvider(rpc);
-    generatedKeys.forEach(async (key, index) => {
-      try {
-        const balance = ethers.formatEther(await provider.getBalance(key.publicKey));
-        setKeyData((prevKeys) => prevKeys.map((k, idx) => (idx === index ? { ...k, balance } : k)));
-      } catch (error) {
-        // Keep it quiet but informative visually below
-        setKeyData((prev) => prev.map((k, idx) => (idx === index ? { ...k, balance: "N/A" } : k)));
-      } finally {
-        setLoading(false);
-      }
-    });
+    const balances = await fetchEthBalances(
+      ethRpc,
+      generatedKeys.map((k) => k.publicKey)
+    );
+    setKeyData((prev) => prev.map((k, i) => ({ ...k, balance: balances[i] ?? "N/A" })));
+    setLoading(false);
   };
 
   const loadDataByState = () => {
@@ -109,36 +87,14 @@ const Home: NextPage = () => {
 
   const generateSOLData = async () => {
     setLoading(true);
-    const generated: { privateKey: string; publicKey: string; balance: string | null }[] = [];
-    setSolanaKeyData([]);
-    for (let i = 0; i < 8; i++) {
-      const kp = Keypair.generate();
-      generated.push({
-        publicKey: kp.publicKey.toBase58(),
-        privateKey: bs58.encode(kp.secretKey),
-        balance: "Loading...",
-      });
-    }
-    setSolanaKeyData(generated);
-
-    try {
-      const connection = new Connection(solRpc, "confirmed");
-      await Promise.all(
-        generated.map(async (k, index) => {
-          try {
-            const lamports = await connection.getBalance(new PublicKey(k.publicKey));
-            const balance = (lamports / LAMPORTS_PER_SOL).toString();
-            setSolanaKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance } : x)));
-          } catch (e) {
-            setSolanaKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance: "N/A" } : x)));
-          }
-        })
-      );
-    } catch (e) {
-      setSolanaKeyData((prev) => prev.map((x) => ({ ...x, balance: "N/A" })));
-    } finally {
-      setLoading(false);
-    }
+    const generated = createSolanaKeys(8);
+    setSolanaKeyData(generated.map((k) => ({ ...k, balance: "Loading..." })));
+    const balances = await fetchSolBalances(
+      solRpc,
+      generated.map((k) => k.publicKey)
+    );
+    setSolanaKeyData((prev) => prev.map((k, i) => ({ ...k, balance: balances[i] ?? "N/A" })));
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -146,43 +102,16 @@ const Home: NextPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [network]);
 
-  const formatSui = (mist: string) => {
-    const n = Number(mist) / 1e9;
-    if (!isFinite(n)) return "N/A";
-    return n.toLocaleString(undefined, { maximumFractionDigits: 9 });
-  };
-
   const generateSUIData = async () => {
     setLoading(true);
-    const generated: { privateKey: string; publicKey: string; balance: string | null }[] = [];
-    setSuiKeyData([]);
-    for (let i = 0; i < 8; i++) {
-      const kp = Ed25519Keypair.generate();
-      const address = kp.getPublicKey().toSuiAddress();
-      const exported = kp.export();
-      // exported.privateKey is Sui keystore-compatible base64 (schema flag + secret key)
-      generated.push({ publicKey: address, privateKey: exported.privateKey, balance: "Loading..." });
-    }
-    setSuiKeyData(generated);
-
-    try {
-      const client = new SuiClient({ url: suiRpc });
-      await Promise.all(
-        generated.map(async (k, index) => {
-          try {
-            const bal = await client.getBalance({ owner: k.publicKey });
-            const balance = formatSui(bal.totalBalance);
-            setSuiKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance } : x)));
-          } catch (e) {
-            setSuiKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance: "N/A" } : x)));
-          }
-        })
-      );
-    } catch (e) {
-      setSuiKeyData((prev) => prev.map((x) => ({ ...x, balance: "N/A" })));
-    } finally {
-      setLoading(false);
-    }
+    const generated = createSuiKeys(8);
+    setSuiKeyData(generated.map((k) => ({ ...k, balance: "Loading..." })));
+    const balances = await fetchSuiBalances(
+      suiRpc,
+      generated.map((k) => k.publicKey)
+    );
+    setSuiKeyData((prev) => prev.map((k, i) => ({ ...k, balance: balances[i] ?? "N/A" })));
+    setLoading(false);
   };
 
   return (
@@ -216,7 +145,11 @@ const Home: NextPage = () => {
               >
                 Ethereum
               </button>
-              <button aria-pressed={network === "solana"} className="w-1/4 md:w-auto" onClick={() => setNetwork("solana")}>
+              <button
+                aria-pressed={network === "solana"}
+                className="w-1/4 md:w-auto"
+                onClick={() => setNetwork("solana")}
+              >
                 Solana
               </button>
               <button aria-pressed={network === "sui"} className="w-1/4 md:w-auto" onClick={() => setNetwork("sui")}>
@@ -353,7 +286,8 @@ const Home: NextPage = () => {
                     </div>
                   </div>
                 ))
-              : network === "solana" ? solanaKeyData.map((key, index) => (
+              : network === "solana"
+              ? solanaKeyData.map((key, index) => (
                   <div key={index} className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="pill">SOL</span>
@@ -381,7 +315,8 @@ const Home: NextPage = () => {
                       </div>
                     </div>
                   </div>
-                )) : suiKeyData.map((key, index) => (
+                ))
+              : suiKeyData.map((key, index) => (
                   <div key={index} className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="pill">SUI</span>
