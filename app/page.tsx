@@ -4,7 +4,9 @@ import { generatePrivateKey } from "@/utils/calcBTC";
 import { ethers } from "ethers";
 import { NextPage } from "next";
 import { useEffect, useState } from "react";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
+import { SuiClient } from "@mysten/sui.js/client";
 import bs58 from "bs58";
 
 const CopyButton = ({ text }: { text: string }) => {
@@ -28,17 +30,23 @@ const CopyButton = ({ text }: { text: string }) => {
   );
 };
 
-
 const Home: NextPage = () => {
   const [keyData, setKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
   const [bitcoinKeyData, setBitcoinKeyData] = useState<any[]>([]);
-  const [solanaKeyData, setSolanaKeyData] = useState<{ privateKey: string; publicKey: string; balance: string | null }[]>([]);
-  const [network, setNetwork] = useState<"bitcoin" | "ethereum" | "solana">("bitcoin");
+  const [solanaKeyData, setSolanaKeyData] = useState<
+    { privateKey: string; publicKey: string; balance: string | null }[]
+  >([]);
+  const [network, setNetwork] = useState<"bitcoin" | "ethereum" | "solana" | "sui">("bitcoin");
+  const [suiKeyData, setSuiKeyData] = useState<
+    { privateKey: string; publicKey: string; balance: string | null }[]
+  >([]);
   const [publicKeyType, setPublicKeyType] = useState(0);
   const [privateKeyType, setPrivateKeyType] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const rpc = process.env.NEXT_PUBLIC_INFURA_ENDPOINT;
+  const solRpc = process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
+  const suiRpc = process.env.NEXT_PUBLIC_SUI_RPC || "https://fullnode.devnet.sui.io";
 
   const generateData = async () => {
     setLoading(true);
@@ -95,7 +103,8 @@ const Home: NextPage = () => {
   const loadDataByState = () => {
     if (network === "bitcoin") return generateData();
     if (network === "ethereum") return generateETHData();
-    return generateSOLData();
+    if (network === "solana") return generateSOLData();
+    return generateSUIData();
   };
 
   const generateSOLData = async () => {
@@ -107,17 +116,74 @@ const Home: NextPage = () => {
       generated.push({
         publicKey: kp.publicKey.toBase58(),
         privateKey: bs58.encode(kp.secretKey),
-        balance: "N/A",
+        balance: "Loading...",
       });
     }
     setSolanaKeyData(generated);
-    setLoading(false);
+
+    try {
+      const connection = new Connection(solRpc, "confirmed");
+      await Promise.all(
+        generated.map(async (k, index) => {
+          try {
+            const lamports = await connection.getBalance(new PublicKey(k.publicKey));
+            const balance = (lamports / LAMPORTS_PER_SOL).toString();
+            setSolanaKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance } : x)));
+          } catch (e) {
+            setSolanaKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance: "N/A" } : x)));
+          }
+        })
+      );
+    } catch (e) {
+      setSolanaKeyData((prev) => prev.map((x) => ({ ...x, balance: "N/A" })));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadDataByState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [network]);
+
+  const formatSui = (mist: string) => {
+    const n = Number(mist) / 1e9;
+    if (!isFinite(n)) return "N/A";
+    return n.toLocaleString(undefined, { maximumFractionDigits: 9 });
+  };
+
+  const generateSUIData = async () => {
+    setLoading(true);
+    const generated: { privateKey: string; publicKey: string; balance: string | null }[] = [];
+    setSuiKeyData([]);
+    for (let i = 0; i < 8; i++) {
+      const kp = Ed25519Keypair.generate();
+      const address = kp.getPublicKey().toSuiAddress();
+      const exported = kp.export();
+      // exported.privateKey is Sui keystore-compatible base64 (schema flag + secret key)
+      generated.push({ publicKey: address, privateKey: exported.privateKey, balance: "Loading..." });
+    }
+    setSuiKeyData(generated);
+
+    try {
+      const client = new SuiClient({ url: suiRpc });
+      await Promise.all(
+        generated.map(async (k, index) => {
+          try {
+            const bal = await client.getBalance({ owner: k.publicKey });
+            const balance = formatSui(bal.totalBalance);
+            setSuiKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance } : x)));
+          } catch (e) {
+            setSuiKeyData((prev) => prev.map((x, i) => (i === index ? { ...x, balance: "N/A" } : x)));
+          }
+        })
+      );
+    } catch (e) {
+      setSuiKeyData((prev) => prev.map((x) => ({ ...x, balance: "N/A" })));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <main>
@@ -128,20 +194,33 @@ const Home: NextPage = () => {
               Random Private Key Generator
             </span>
           </h1>
-          <p className="mt-2 text-slate-400">Generate Bitcoin, Ethereum, or Solana keys instantly. Copy with one click.</p>
+          <p className="mt-2 text-slate-400">
+            Generate Bitcoin, Ethereum, Solana, or Sui keys instantly. Copy with one click.
+          </p>
         </div>
 
         <section className="card p-4 md:p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="segmented w-full md:w-auto">
-              <button aria-pressed={network === "bitcoin"} className="w-1/3 md:w-auto" onClick={() => setNetwork("bitcoin")}>
+              <button
+                aria-pressed={network === "bitcoin"}
+                className="w-1/3 md:w-auto"
+                onClick={() => setNetwork("bitcoin")}
+              >
                 Bitcoin
               </button>
-              <button aria-pressed={network === "ethereum"} className="w-1/3 md:w-auto" onClick={() => setNetwork("ethereum")}>
+              <button
+                aria-pressed={network === "ethereum"}
+                className="w-1/3 md:w-auto"
+                onClick={() => setNetwork("ethereum")}
+              >
                 Ethereum
               </button>
-              <button aria-pressed={network === "solana"} className="w-1/3 md:w-auto" onClick={() => setNetwork("solana")}>
+              <button aria-pressed={network === "solana"} className="w-1/4 md:w-auto" onClick={() => setNetwork("solana")}>
                 Solana
+              </button>
+              <button aria-pressed={network === "sui"} className="w-1/4 md:w-auto" onClick={() => setNetwork("sui")}>
+                Sui
               </button>
             </div>
 
@@ -244,7 +323,8 @@ const Home: NextPage = () => {
                     </div>
                   </div>
                 ))
-              : network === "ethereum" ? keyData.map((key, index) => (
+              : network === "ethereum"
+              ? keyData.map((key, index) => (
                   <div key={index} className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="pill">ETH</span>
@@ -272,7 +352,8 @@ const Home: NextPage = () => {
                       </div>
                     </div>
                   </div>
-                )) : solanaKeyData.map((key, index) => (
+                ))
+              : network === "solana" ? solanaKeyData.map((key, index) => (
                   <div key={index} className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="pill">SOL</span>
@@ -295,7 +376,35 @@ const Home: NextPage = () => {
                       <div className="field">
                         <div className="field-label">Balance</div>
                         <div className="field-value">
-                          <code className="text-[12px] text-white w-auto px-2 py-1">N/A SOL</code>
+                          <code className="text-[12px] text-white w-auto px-2 py-1">{key.balance} SOL</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )) : suiKeyData.map((key, index) => (
+                  <div key={index} className="card p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="pill">SUI</span>
+                    </div>
+                    <div>
+                      <div className="field">
+                        <div className="field-label">Public</div>
+                        <div className="field-value">
+                          <div className="codebox">{key.publicKey}</div>
+                          <CopyButton text={key.publicKey} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Private</div>
+                        <div className="field-value">
+                          <div className="codebox">{key.privateKey}</div>
+                          <CopyButton text={key.privateKey} />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <div className="field-label">Balance</div>
+                        <div className="field-value">
+                          <code className="text-[12px] text-white w-auto px-2 py-1">{key.balance} SUI</code>
                         </div>
                       </div>
                     </div>
